@@ -502,7 +502,7 @@ public sealed class HandSortButtonController : MonoBehaviour
             CardModel card = GetSlotCard(slot);
             if (slot != null && card != null)
             {
-                sortedSlots.Add(new CardSlotSortEntry(slot, GetSortCost(card), i));
+                sortedSlots.Add(new CardSlotSortEntry(slot, GetSortCost(card), IsWildCard(card), i));
             }
         }
 
@@ -527,7 +527,7 @@ public sealed class HandSortButtonController : MonoBehaviour
             CardModel card = GetCardAt(cardPile, i);
             if (card != null)
             {
-                entries.Add(new CardSortEntry(card, GetSortCost(card), i));
+                entries.Add(new CardSortEntry(card, GetSortCost(card), IsWildCard(card), i));
             }
         }
 
@@ -544,8 +544,34 @@ public sealed class HandSortButtonController : MonoBehaviour
     [HideFromIl2Cpp]
     private static int CompareCards(CardSortEntry x, CardSortEntry y)
     {
+        int wildCompare = x.IsWild.CompareTo(y.IsWild);
+        if (wildCompare != 0)
+        {
+            return wildCompare;
+        }
+
         int costCompare = x.Cost.CompareTo(y.Cost);
         return costCompare != 0 ? costCompare : x.OriginalIndex.CompareTo(y.OriginalIndex);
+    }
+
+    [HideFromIl2Cpp]
+    private static bool IsWildCard(CardModel card)
+    {
+        try
+        {
+            CardCostType costType = card?.CardCostType;
+            if (costType == null)
+            {
+                return false;
+            }
+
+            return costType is WildCostType || costType.TryCast<WildCostType>() != null;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Logger?.LogWarning($"Unable to read card cost type: {ex.Message}");
+            return false;
+        }
     }
 
     [HideFromIl2Cpp]
@@ -594,6 +620,12 @@ public sealed class HandSortButtonController : MonoBehaviour
     [HideFromIl2Cpp]
     private static int CompareSlots(CardSlotSortEntry x, CardSlotSortEntry y)
     {
+        int wildCompare = x.IsWild.CompareTo(y.IsWild);
+        if (wildCompare != 0)
+        {
+            return wildCompare;
+        }
+
         int costCompare = x.Cost.CompareTo(y.Cost);
         return costCompare != 0 ? costCompare : x.OriginalIndex.CompareTo(y.OriginalIndex);
     }
@@ -651,29 +683,33 @@ public sealed class HandSortButtonController : MonoBehaviour
 
     private readonly struct CardSortEntry
     {
-        public CardSortEntry(CardModel card, int cost, int originalIndex)
+        public CardSortEntry(CardModel card, int cost, bool isWild, int originalIndex)
         {
             Card = card;
             Cost = cost;
+            IsWild = isWild;
             OriginalIndex = originalIndex;
         }
 
         public CardModel Card { get; }
         public int Cost { get; }
+        public bool IsWild { get; }
         public int OriginalIndex { get; }
     }
 
     private readonly struct CardSlotSortEntry
     {
-        public CardSlotSortEntry(CardSlot slot, int cost, int originalIndex)
+        public CardSlotSortEntry(CardSlot slot, int cost, bool isWild, int originalIndex)
         {
             Slot = slot;
             Cost = cost;
+            IsWild = isWild;
             OriginalIndex = originalIndex;
         }
 
         public CardSlot Slot { get; }
         public int Cost { get; }
+        public bool IsWild { get; }
         public int OriginalIndex { get; }
     }
 }
