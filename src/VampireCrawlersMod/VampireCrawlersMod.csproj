@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>VampireCrawlersMod</AssemblyName>
+    <RootNamespace>VampireCrawlersMod</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GameRoot>$(MSBuildProjectDirectory)\..\..\game</GameRoot>
+    <BepInExCore>$(GameRoot)\BepInEx\core</BepInExCore>
+    <BepInExInterop>$(GameRoot)\BepInEx\interop</BepInExInterop>
+    <PluginOutput>$(GameRoot)\BepInEx\plugins</PluginOutput>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony" Private="false">
+      <HintPath>$(BepInExCore)\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="BepInEx.Core" Private="false">
+      <HintPath>$(BepInExCore)\BepInEx.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="BepInEx.Unity.IL2CPP" Private="false">
+      <HintPath>$(BepInExCore)\BepInEx.Unity.IL2CPP.dll</HintPath>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime" Private="false">
+      <HintPath>$(BepInExCore)\Il2CppInterop.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib" Private="false">
+      <HintPath>$(BepInExInterop)\Il2Cppmscorlib.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule" Private="false">
+      <HintPath>$(BepInExInterop)\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI" Private="false">
+      <HintPath>$(BepInExInterop)\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule" Private="false">
+      <HintPath>$(BepInExInterop)\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule" Private="false">
+      <HintPath>$(BepInExInterop)\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule" Private="false">
+      <HintPath>$(BepInExInterop)\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro" Private="false">
+      <HintPath>$(BepInExInterop)\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="Pancake" Private="false">
+      <HintPath>$(BepInExInterop)\Pancake.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CopyPluginToGame" AfterTargets="Build">
+    <MakeDir Directories="$(PluginOutput)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginOutput)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
