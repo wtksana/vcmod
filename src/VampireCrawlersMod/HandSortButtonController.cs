@@ -34,12 +34,10 @@ public sealed class HandSortButtonController : MonoBehaviour
     private static CardSlotHolder _pendingLayoutRefreshCardGroup;
     private static int _pendingLayoutRefreshFrames;
 
-    private Canvas _buttonCanvas;
     private GameObject _buttonRoot;
     private RectTransform _buttonRectTransform;
     private Image[] _buttonInnerFrameImages;
     private Image[] _buttonFaceImages;
-    private Image _buttonTopHighlight;
     private Image _buttonBottomShade;
     private Text _buttonText;
 
@@ -89,7 +87,7 @@ public sealed class HandSortButtonController : MonoBehaviour
             return;
         }
 
-        float scale = Mathf.Min(Screen.width / 1920f, Screen.height / 1080f);
+        float scale = GetUiScale();
         EnsureButtonUi();
         SetButtonVisible(true);
         UpdateButtonTransform(scale);
@@ -105,7 +103,7 @@ public sealed class HandSortButtonController : MonoBehaviour
             return;
         }
 
-        float scale = Mathf.Min(Screen.width / 1920f, Screen.height / 1080f);
+        float scale = GetUiScale();
         Rect buttonRect = GetButtonGuiRect(scale);
         if (HandleButtonInput(buttonRect, scale))
         {
@@ -169,9 +167,9 @@ public sealed class HandSortButtonController : MonoBehaviour
 
         GameObject canvasObject = new GameObject("VampireCrawlersMod.HandSortButtonCanvas");
         canvasObject.transform.SetParent(transform, false);
-        _buttonCanvas = canvasObject.AddComponent<Canvas>();
-        _buttonCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        _buttonCanvas.sortingOrder = ButtonCanvasSortingOrder;
+        Canvas buttonCanvas = canvasObject.AddComponent<Canvas>();
+        buttonCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        buttonCanvas.sortingOrder = ButtonCanvasSortingOrder;
         canvasObject.AddComponent<CanvasScaler>();
 
         _buttonRoot = new GameObject("HandSortButton");
@@ -184,7 +182,7 @@ public sealed class HandSortButtonController : MonoBehaviour
         AddPixelPanel("OuterFrame", 0f, 0f, 0f, 0f, 9f, new Color(0.09f, 0.08f, 0.11f, 1f));
         _buttonInnerFrameImages = AddPixelPanel("InnerFrame", 5f, 5f, 5f, 5f, 6f, new Color(0.42f, 0.31f, 0.14f, 1f));
         _buttonFaceImages = AddPixelPanel("Face", 9f, 8f, 9f, 8f, 5f, GetButtonFaceColor(false, false));
-        _buttonTopHighlight = AddButtonLayer("TopHighlight", new Vector2(22f, 35f), new Vector2(-42f, -12f), new Color(0.95f, 0.83f, 0.53f, 0.34f));
+        AddButtonLayer("TopHighlight", new Vector2(22f, 35f), new Vector2(-42f, -12f), new Color(0.95f, 0.83f, 0.53f, 0.34f));
         _buttonBottomShade = AddButtonLayer("BottomShade", new Vector2(24f, 8f), new Vector2(-42f, -43f), new Color(0.42f, 0.29f, 0.13f, 0.4f));
 
         GameObject textObject = new GameObject("Label");
@@ -284,6 +282,12 @@ public sealed class HandSortButtonController : MonoBehaviour
         _buttonRectTransform.sizeDelta = new Vector2(width, height);
         _buttonRectTransform.anchoredPosition = new Vector2(referencePosition.x * scale, bottom);
         _buttonText.fontSize = Mathf.Max(12, Mathf.RoundToInt(22f * scale));
+    }
+
+    [HideFromIl2Cpp]
+    private static float GetUiScale()
+    {
+        return Mathf.Min(Screen.width / ReferenceWidth, Screen.height / ReferenceHeight);
     }
 
     [HideFromIl2Cpp]
@@ -544,14 +548,7 @@ public sealed class HandSortButtonController : MonoBehaviour
     [HideFromIl2Cpp]
     private static int CompareCards(CardSortEntry x, CardSortEntry y)
     {
-        int wildCompare = x.IsWild.CompareTo(y.IsWild);
-        if (wildCompare != 0)
-        {
-            return wildCompare;
-        }
-
-        int costCompare = x.Cost.CompareTo(y.Cost);
-        return costCompare != 0 ? costCompare : x.OriginalIndex.CompareTo(y.OriginalIndex);
+        return CompareSortValues(x.IsWild, x.Cost, x.OriginalIndex, y.IsWild, y.Cost, y.OriginalIndex);
     }
 
     [HideFromIl2Cpp]
@@ -620,14 +617,20 @@ public sealed class HandSortButtonController : MonoBehaviour
     [HideFromIl2Cpp]
     private static int CompareSlots(CardSlotSortEntry x, CardSlotSortEntry y)
     {
-        int wildCompare = x.IsWild.CompareTo(y.IsWild);
+        return CompareSortValues(x.IsWild, x.Cost, x.OriginalIndex, y.IsWild, y.Cost, y.OriginalIndex);
+    }
+
+    [HideFromIl2Cpp]
+    private static int CompareSortValues(bool xIsWild, int xCost, int xOriginalIndex, bool yIsWild, int yCost, int yOriginalIndex)
+    {
+        int wildCompare = xIsWild.CompareTo(yIsWild);
         if (wildCompare != 0)
         {
             return wildCompare;
         }
 
-        int costCompare = x.Cost.CompareTo(y.Cost);
-        return costCompare != 0 ? costCompare : x.OriginalIndex.CompareTo(y.OriginalIndex);
+        int costCompare = xCost.CompareTo(yCost);
+        return costCompare != 0 ? costCompare : xOriginalIndex.CompareTo(yOriginalIndex);
     }
 
     [HideFromIl2Cpp]

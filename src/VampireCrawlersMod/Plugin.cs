@@ -23,7 +23,6 @@ public sealed class Plugin : BasePlugin
         Logger.LogInfo($"{PluginName} {PluginVersion} loaded");
 
         HandSortButtonController.Configure(Config);
-        ClassInjector.RegisterTypeInIl2Cpp<CardBreakCountdownDisplay>();
         ClassInjector.RegisterTypeInIl2Cpp<HandSortButtonController>();
         AddComponent<HandSortButtonController>();
         _harmony.PatchAll(typeof(Plugin).Assembly);

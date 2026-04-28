@@ -1,20 +1,13 @@
 using System;
-using Il2CppInterop.Runtime.Attributes;
 using Nosebleed.Pancake.GameConfig;
 using Nosebleed.Pancake.GameLogic;
 using Nosebleed.Pancake.Models;
 using Nosebleed.Pancake.View;
-using UnityEngine;
 
 namespace VampireCrawlersMod;
 
-public sealed class CardBreakCountdownDisplay : MonoBehaviour
+internal static class CardBreakCountdownDisplay
 {
-    public CardBreakCountdownDisplay(IntPtr ptr) : base(ptr)
-    {
-    }
-
-    [HideFromIl2Cpp]
     public static string AddCountdownLine(CardView cardView, string description)
     {
         int remainingPlays = GetRemainingPlaysBeforeBreak(cardView?.CardModel?.BreakableCard);
@@ -32,7 +25,6 @@ public sealed class CardBreakCountdownDisplay : MonoBehaviour
         return $"{countdownLine}\n{description}";
     }
 
-    [HideFromIl2Cpp]
     private static int GetRemainingPlaysBeforeBreak(BreakableCard breakableCard)
     {
         if (breakableCard == null || breakableCard.CrackState != CardCrackState.Cracked)
