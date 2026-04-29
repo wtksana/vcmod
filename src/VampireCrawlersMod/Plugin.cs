@@ -22,6 +22,7 @@ public sealed class Plugin : BasePlugin
         Logger = base.Log;
         Logger.LogInfo($"{PluginName} {PluginVersion} loaded");
 
+        AutoPlayFilter.Configure(Config);
         HandSortButtonController.Configure(Config);
         ClassInjector.RegisterTypeInIl2Cpp<HandSortButtonController>();
         AddComponent<HandSortButtonController>();

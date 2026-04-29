@@ -672,7 +672,7 @@ public sealed class HandSortButtonController : MonoBehaviour
             CardModel card = GetSlotCard(slot);
             if (slot != null && card != null)
             {
-                sortedSlots.Add(new CardSlotSortEntry(slot, GetSortCost(card), GetSortName(card), IsWildCard(card), i));
+                sortedSlots.Add(new CardSlotSortEntry(slot, GetSortCost(card), GetSortName(card), CardRules.IsWildCard(card), i));
             }
         }
 
@@ -697,7 +697,7 @@ public sealed class HandSortButtonController : MonoBehaviour
             CardModel card = GetCardAt(cardPile, i);
             if (card != null)
             {
-                entries.Add(new CardSortEntry(card, GetSortCost(card), GetSortName(card), IsWildCard(card), i));
+                entries.Add(new CardSortEntry(card, GetSortCost(card), GetSortName(card), CardRules.IsWildCard(card), i));
             }
         }
 
@@ -715,26 +715,6 @@ public sealed class HandSortButtonController : MonoBehaviour
     private static int CompareCards(CardSortEntry x, CardSortEntry y)
     {
         return CompareSortValues(x.IsWild, x.Cost, x.Name, x.OriginalIndex, y.IsWild, y.Cost, y.Name, y.OriginalIndex);
-    }
-
-    [HideFromIl2Cpp]
-    private static bool IsWildCard(CardModel card)
-    {
-        try
-        {
-            CardCostType costType = card?.CardCostType;
-            if (costType == null)
-            {
-                return false;
-            }
-
-            return costType is WildCostType || costType.TryCast<WildCostType>() != null;
-        }
-        catch (Exception ex)
-        {
-            Plugin.Logger?.LogWarning($"Unable to read card cost type: {ex.Message}");
-            return false;
-        }
     }
 
     [HideFromIl2Cpp]

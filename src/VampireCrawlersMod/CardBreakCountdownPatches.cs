@@ -28,6 +28,24 @@ internal static class CardBreakCountdownPatches
         HandSortButtonController.NotifyCardPlayed(__result);
     }
 
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(PlayerModel), nameof(PlayerModel.TryPlayCard))]
+    private static bool PlayerModel_TryPlayCard_Prefix(PlayerModel __instance, ref CardModel cardModel, bool isAutoPlay, ref bool __result)
+    {
+        if (!isAutoPlay)
+        {
+            return true;
+        }
+
+        if (AutoPlayFilter.TryReplaceAutoPlayCard(__instance, ref cardModel))
+        {
+            return true;
+        }
+
+        __result = false;
+        return false;
+    }
+
     [HarmonyPostfix]
     [HarmonyPatch(typeof(CardView), nameof(CardView.GetCardDescription))]
     private static void CardView_GetCardDescription_Postfix(CardView __instance, ref string __result)
