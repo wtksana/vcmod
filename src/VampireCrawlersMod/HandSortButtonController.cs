@@ -21,10 +21,16 @@ public sealed class HandSortButtonController : MonoBehaviour
     private const float ButtonReferenceWidth = 128f;
     private const float ButtonReferenceHeight = 56f;
     private const int ButtonCanvasSortingOrder = 10;
+    private const float DefaultAutoSortDelaySeconds = 1f;
+    private const float DefaultAutoSortSuppressAfterPlaySeconds = 1.5f;
+    private const float AutoSortMaximumWaitSeconds = 2f;
 
     private static PlayerModel _player;
     private static ConfigEntry<float> _buttonReferenceX;
     private static ConfigEntry<float> _buttonReferenceY;
+    private static ConfigEntry<bool> _autoSortAfterDraw;
+    private static ConfigEntry<float> _autoSortDelaySeconds;
+    private static ConfigEntry<float> _autoSortSuppressAfterPlaySeconds;
     private static Vector2 _runtimeButtonReferencePosition;
     private static bool _hasRuntimeButtonReferencePosition;
     private static bool _isDraggingButton;
@@ -33,6 +39,11 @@ public sealed class HandSortButtonController : MonoBehaviour
     private static bool _isMouseOverButton;
     private static CardSlotHolder _pendingLayoutRefreshCardGroup;
     private static int _pendingLayoutRefreshFrames;
+    private static PlayerModel _pendingAutoSortPlayer;
+    private static float _pendingAutoSortDelaySeconds;
+    private static float _pendingAutoSortWaitSeconds;
+    private static string _pendingAutoSortReason;
+    private static float _lastPlayCardTime = float.NegativeInfinity;
 
     private GameObject _buttonRoot;
     private RectTransform _buttonRectTransform;
@@ -59,6 +70,24 @@ public sealed class HandSortButtonController : MonoBehaviour
             "ReferenceY",
             DefaultButtonReferenceY,
             "整理按钮在 1920x1080 参考坐标中的左上角 Y。按住右键拖动按钮后会自动更新。");
+
+        _autoSortAfterDraw = config.Bind(
+            "HandSort",
+            "AutoSortAfterDraw",
+            true,
+            "抽牌后自动整理手牌。");
+
+        _autoSortDelaySeconds = config.Bind(
+            "HandSort",
+            "AutoSortDelaySeconds",
+            DefaultAutoSortDelaySeconds,
+            "抽牌后自动整理手牌前等待的秒数，不受帧率影响。洗牌后抽牌动画较慢时可调大。");
+
+        _autoSortSuppressAfterPlaySeconds = config.Bind(
+            "HandSort",
+            "AutoSortSuppressAfterPlaySeconds",
+            DefaultAutoSortSuppressAfterPlaySeconds,
+            "成功出牌后多少秒内不触发自动整理，避免出牌抽牌时误点新位置的手牌。");
     }
 
     [HideFromIl2Cpp]
@@ -73,6 +102,21 @@ public sealed class HandSortButtonController : MonoBehaviour
         if (_player == player)
         {
             _player = null;
+        }
+    }
+
+    [HideFromIl2Cpp]
+    public static void RequestAutoSortAfterDraw(PlayerModel player)
+    {
+        RequestAutoSort(player, _autoSortAfterDraw, "draw");
+    }
+
+    [HideFromIl2Cpp]
+    public static void NotifyCardPlayed(bool wasPlayed)
+    {
+        if (wasPlayed)
+        {
+            _lastPlayCardTime = Time.unscaledTime;
         }
     }
 
@@ -107,11 +151,18 @@ public sealed class HandSortButtonController : MonoBehaviour
         Rect buttonRect = GetButtonGuiRect(scale);
         if (HandleButtonInput(buttonRect, scale))
         {
-            SortHandByManaCost(player);
+            SortHandByManaCost(player, "button");
         }
     }
 
     private void LateUpdate()
+    {
+        ProcessPendingLayoutRefresh();
+        ProcessPendingAutoSort();
+    }
+
+    [HideFromIl2Cpp]
+    private static void ProcessPendingLayoutRefresh()
     {
         if (_pendingLayoutRefreshFrames <= 0)
         {
@@ -129,12 +180,23 @@ public sealed class HandSortButtonController : MonoBehaviour
     [HideFromIl2Cpp]
     private static bool CanShowButton(PlayerModel player)
     {
-        if (player == null || !player.IsInEncounter)
+        if (!CanSortHand(player))
         {
             return false;
         }
 
         if (HasActiveModal())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    [HideFromIl2Cpp]
+    private static bool CanSortHand(PlayerModel player)
+    {
+        if (player == null || !player.IsInEncounter)
         {
             return false;
         }
@@ -452,7 +514,111 @@ public sealed class HandSortButtonController : MonoBehaviour
     }
 
     [HideFromIl2Cpp]
-    private static void SortHandByManaCost(PlayerModel player)
+    private static void RequestAutoSort(PlayerModel player, ConfigEntry<bool> configEntry, string reason)
+    {
+        if (configEntry?.Value != true)
+        {
+            return;
+        }
+
+        _pendingAutoSortPlayer = player ?? _player;
+        _pendingAutoSortDelaySeconds = GetAutoSortDelaySeconds();
+        _pendingAutoSortWaitSeconds = AutoSortMaximumWaitSeconds;
+        _pendingAutoSortReason = reason;
+    }
+
+    [HideFromIl2Cpp]
+    private static float GetAutoSortDelaySeconds()
+    {
+        return Mathf.Clamp(_autoSortDelaySeconds?.Value ?? DefaultAutoSortDelaySeconds, 0f, 5f);
+    }
+
+    [HideFromIl2Cpp]
+    private static float GetAutoSortSuppressAfterPlaySeconds()
+    {
+        return Mathf.Clamp(_autoSortSuppressAfterPlaySeconds?.Value ?? DefaultAutoSortSuppressAfterPlaySeconds, 0f, 10f);
+    }
+
+    [HideFromIl2Cpp]
+    private static void ProcessPendingAutoSort()
+    {
+        if (_pendingAutoSortPlayer == null)
+        {
+            return;
+        }
+
+        if (_pendingAutoSortDelaySeconds > 0f)
+        {
+            _pendingAutoSortDelaySeconds -= Time.unscaledDeltaTime;
+            if (_pendingAutoSortDelaySeconds > 0f)
+            {
+                return;
+            }
+        }
+
+        float suppressRemainingSeconds = GetAutoSortSuppressRemainingSeconds();
+        if (suppressRemainingSeconds > 0f)
+        {
+            _pendingAutoSortDelaySeconds = suppressRemainingSeconds;
+            return;
+        }
+
+        PlayerModel player = _pendingAutoSortPlayer;
+        if (!CanSortHand(player))
+        {
+            ClearPendingAutoSort();
+            return;
+        }
+
+        if (!IsHandViewReady(player) && _pendingAutoSortWaitSeconds > 0f)
+        {
+            _pendingAutoSortWaitSeconds -= Time.unscaledDeltaTime;
+            return;
+        }
+
+        string reason = _pendingAutoSortReason;
+        ClearPendingAutoSort();
+        SortHandByManaCost(player, reason);
+    }
+
+    [HideFromIl2Cpp]
+    private static float GetAutoSortSuppressRemainingSeconds()
+    {
+        float suppressSeconds = GetAutoSortSuppressAfterPlaySeconds();
+        if (suppressSeconds <= 0f || float.IsNegativeInfinity(_lastPlayCardTime))
+        {
+            return 0f;
+        }
+
+        float elapsedSeconds = Time.unscaledTime - _lastPlayCardTime;
+        return Mathf.Max(0f, suppressSeconds - elapsedSeconds);
+    }
+
+    [HideFromIl2Cpp]
+    private static void ClearPendingAutoSort()
+    {
+        _pendingAutoSortPlayer = null;
+        _pendingAutoSortDelaySeconds = 0f;
+        _pendingAutoSortWaitSeconds = 0f;
+        _pendingAutoSortReason = null;
+    }
+
+    [HideFromIl2Cpp]
+    private static bool IsHandViewReady(PlayerModel player)
+    {
+        CardPileModel cardPile = player?.HandPile?.CardPile;
+        CardSlotHolder cardGroup = player?.HandPile?.View?.CardGroup;
+        if (cardPile == null || cardGroup == null)
+        {
+            return false;
+        }
+
+        List<CardSlot> slots = GetVisibleCardSlots(cardGroup);
+        return slots != null && slots.Count >= cardPile.Count;
+    }
+
+    [HideFromIl2Cpp]
+    private static void SortHandByManaCost(PlayerModel player, string reason)
     {
         CardPileModel cardPile = player?.HandPile?.CardPile;
         if (cardPile == null || cardPile.Count <= 1)
@@ -480,7 +646,7 @@ public sealed class HandSortButtonController : MonoBehaviour
 
         player.HandPile.View?.RefreshCardsUI(player);
         SortHandSlotsByManaCost(player);
-        Plugin.Logger?.LogInfo("Sorted hand by mana cost.");
+        Plugin.Logger?.LogInfo($"Sorted hand by mana cost. Reason: {reason}");
     }
 
     [HideFromIl2Cpp]
@@ -506,7 +672,7 @@ public sealed class HandSortButtonController : MonoBehaviour
             CardModel card = GetSlotCard(slot);
             if (slot != null && card != null)
             {
-                sortedSlots.Add(new CardSlotSortEntry(slot, GetSortCost(card), IsWildCard(card), i));
+                sortedSlots.Add(new CardSlotSortEntry(slot, GetSortCost(card), GetSortName(card), IsWildCard(card), i));
             }
         }
 
@@ -531,7 +697,7 @@ public sealed class HandSortButtonController : MonoBehaviour
             CardModel card = GetCardAt(cardPile, i);
             if (card != null)
             {
-                entries.Add(new CardSortEntry(card, GetSortCost(card), IsWildCard(card), i));
+                entries.Add(new CardSortEntry(card, GetSortCost(card), GetSortName(card), IsWildCard(card), i));
             }
         }
 
@@ -548,7 +714,7 @@ public sealed class HandSortButtonController : MonoBehaviour
     [HideFromIl2Cpp]
     private static int CompareCards(CardSortEntry x, CardSortEntry y)
     {
-        return CompareSortValues(x.IsWild, x.Cost, x.OriginalIndex, y.IsWild, y.Cost, y.OriginalIndex);
+        return CompareSortValues(x.IsWild, x.Cost, x.Name, x.OriginalIndex, y.IsWild, y.Cost, y.Name, y.OriginalIndex);
     }
 
     [HideFromIl2Cpp]
@@ -586,6 +752,26 @@ public sealed class HandSortButtonController : MonoBehaviour
     }
 
     [HideFromIl2Cpp]
+    private static string GetSortName(CardModel card)
+    {
+        try
+        {
+            string name = card?.Name;
+            if (!string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+
+            return card?.CardConfig?.Name ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Logger?.LogWarning($"Unable to read card name: {ex.Message}");
+            return string.Empty;
+        }
+    }
+
+    [HideFromIl2Cpp]
     private static List<CardSlot> GetVisibleCardSlots(CardSlotHolder cardGroup)
     {
         if (cardGroup == null)
@@ -617,11 +803,11 @@ public sealed class HandSortButtonController : MonoBehaviour
     [HideFromIl2Cpp]
     private static int CompareSlots(CardSlotSortEntry x, CardSlotSortEntry y)
     {
-        return CompareSortValues(x.IsWild, x.Cost, x.OriginalIndex, y.IsWild, y.Cost, y.OriginalIndex);
+        return CompareSortValues(x.IsWild, x.Cost, x.Name, x.OriginalIndex, y.IsWild, y.Cost, y.Name, y.OriginalIndex);
     }
 
     [HideFromIl2Cpp]
-    private static int CompareSortValues(bool xIsWild, int xCost, int xOriginalIndex, bool yIsWild, int yCost, int yOriginalIndex)
+    private static int CompareSortValues(bool xIsWild, int xCost, string xName, int xOriginalIndex, bool yIsWild, int yCost, string yName, int yOriginalIndex)
     {
         int wildCompare = xIsWild.CompareTo(yIsWild);
         if (wildCompare != 0)
@@ -630,7 +816,13 @@ public sealed class HandSortButtonController : MonoBehaviour
         }
 
         int costCompare = xCost.CompareTo(yCost);
-        return costCompare != 0 ? costCompare : xOriginalIndex.CompareTo(yOriginalIndex);
+        if (costCompare != 0)
+        {
+            return costCompare;
+        }
+
+        int nameCompare = StringComparer.Ordinal.Compare(xName, yName);
+        return nameCompare != 0 ? nameCompare : xOriginalIndex.CompareTo(yOriginalIndex);
     }
 
     [HideFromIl2Cpp]
@@ -686,32 +878,36 @@ public sealed class HandSortButtonController : MonoBehaviour
 
     private readonly struct CardSortEntry
     {
-        public CardSortEntry(CardModel card, int cost, bool isWild, int originalIndex)
+        public CardSortEntry(CardModel card, int cost, string name, bool isWild, int originalIndex)
         {
             Card = card;
             Cost = cost;
+            Name = name;
             IsWild = isWild;
             OriginalIndex = originalIndex;
         }
 
         public CardModel Card { get; }
         public int Cost { get; }
+        public string Name { get; }
         public bool IsWild { get; }
         public int OriginalIndex { get; }
     }
 
     private readonly struct CardSlotSortEntry
     {
-        public CardSlotSortEntry(CardSlot slot, int cost, bool isWild, int originalIndex)
+        public CardSlotSortEntry(CardSlot slot, int cost, string name, bool isWild, int originalIndex)
         {
             Slot = slot;
             Cost = cost;
+            Name = name;
             IsWild = isWild;
             OriginalIndex = originalIndex;
         }
 
         public CardSlot Slot { get; }
         public int Cost { get; }
+        public string Name { get; }
         public bool IsWild { get; }
         public int OriginalIndex { get; }
     }
