@@ -1,5 +1,7 @@
 using System;
+using Nosebleed.Pancake.GameCommands;
 using Nosebleed.Pancake.GameConfig;
+using Nosebleed.Pancake.GameConfig.Accessors;
 using Nosebleed.Pancake.GameLogic;
 using Nosebleed.Pancake.Models;
 
@@ -61,5 +63,85 @@ internal static class CardRules
     public static bool HasOnlyOnePlayBeforeBreak(CardModel card)
     {
         return GetRemainingPlaysBeforeBreak(card) == 1;
+    }
+
+    public static bool HasCrack(CardModel card)
+    {
+        return GetRemainingPlaysBeforeBreak(card) > 0;
+    }
+
+    public static bool HasDestroyOnPlay(CardModel card)
+    {
+        if (card == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (card.IsCopyWithDestroy)
+            {
+                return true;
+            }
+
+            CardEffectsModel effectsModel = card.CardEffectsModel;
+            return effectsModel != null && effectsModel.HasOnPlayCardEffect<DestroyEffect>(out _);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Logger?.LogWarning($"Unable to read card destroy effect: {ex.Message}");
+            return false;
+        }
+    }
+
+    public static bool IsTemporaryCard(PlayerModel player, CardModel card)
+    {
+        if (player == null || card == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return player.IsCardTemporary(card);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Logger?.LogWarning($"Unable to read temporary card state: {ex.Message}");
+            return false;
+        }
+    }
+
+    public static int GetAutoPlayTypeRank(CardModel card)
+    {
+        if (HasCardType(card, Databases.CardTypes?.Mana))
+        {
+            return 0;
+        }
+
+        if (HasCardType(card, Databases.CardTypes?.Attack))
+        {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private static bool HasCardType(CardModel card, CardType cardType)
+    {
+        if (card == null || cardType == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return card.GetCardTypeCount(cardType) > 0;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Logger?.LogWarning($"Unable to read card type: {ex.Message}");
+            return false;
+        }
     }
 }

@@ -23,6 +23,7 @@ public sealed class Plugin : BasePlugin
         Logger.LogInfo($"{PluginName} {PluginVersion} loaded");
 
         AutoPlayFilter.Configure(Config);
+        CardBreakCountdownDisplay.Configure(Config);
         HandSortButtonController.Configure(Config);
         ClassInjector.RegisterTypeInIl2Cpp<HandSortButtonController>();
         AddComponent<HandSortButtonController>();
