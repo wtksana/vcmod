@@ -51,6 +51,11 @@ public sealed class HandSortButtonController : MonoBehaviour
     private Image[] _buttonFaceImages;
     private Image _buttonBottomShade;
     private Text _buttonText;
+    private bool _canShowButton;
+    private bool _lastButtonHovered;
+    private bool _lastButtonPressed;
+    private float _lastButtonScale = -1f;
+    private Vector2 _lastButtonReferencePosition;
 
     public HandSortButtonController(IntPtr ptr) : base(ptr)
     {
@@ -123,11 +128,13 @@ public sealed class HandSortButtonController : MonoBehaviour
     private void Update()
     {
         PlayerModel player = _player;
-        if (!CanShowButton(player))
+        _canShowButton = CanShowButton(player);
+        if (!_canShowButton)
         {
             _isDraggingButton = false;
             _isLeftButtonDownOnSortButton = false;
             SetButtonVisible(false);
+            _lastButtonScale = -1f;
             return;
         }
 
@@ -142,7 +149,7 @@ public sealed class HandSortButtonController : MonoBehaviour
     private void OnGUI()
     {
         PlayerModel player = _player;
-        if (!CanShowButton(player))
+        if (!_canShowButton || player == null)
         {
             return;
         }
@@ -337,6 +344,11 @@ public sealed class HandSortButtonController : MonoBehaviour
     private void UpdateButtonTransform(float scale)
     {
         Vector2 referencePosition = GetButtonReferencePosition(scale);
+        if (Mathf.Approximately(_lastButtonScale, scale) && _lastButtonReferencePosition == referencePosition)
+        {
+            return;
+        }
+
         float width = ButtonReferenceWidth * scale;
         float height = ButtonReferenceHeight * scale;
         float bottom = (ReferenceHeight - referencePosition.y - ButtonReferenceHeight) * scale;
@@ -344,6 +356,8 @@ public sealed class HandSortButtonController : MonoBehaviour
         _buttonRectTransform.sizeDelta = new Vector2(width, height);
         _buttonRectTransform.anchoredPosition = new Vector2(referencePosition.x * scale, bottom);
         _buttonText.fontSize = Mathf.Max(12, Mathf.RoundToInt(22f * scale));
+        _lastButtonScale = scale;
+        _lastButtonReferencePosition = referencePosition;
     }
 
     [HideFromIl2Cpp]
@@ -480,9 +494,16 @@ public sealed class HandSortButtonController : MonoBehaviour
         }
 
         bool pressed = _isDraggingButton || (_isLeftButtonDownOnSortButton && _isMouseOverButton);
+        if (_lastButtonHovered == _isMouseOverButton && _lastButtonPressed == pressed)
+        {
+            return;
+        }
+
         SetImagesColor(_buttonFaceImages, GetButtonFaceColor(_isMouseOverButton, pressed));
         SetImagesColor(_buttonInnerFrameImages, pressed ? new Color(0.31f, 0.22f, 0.11f, 1f) : new Color(0.42f, 0.31f, 0.14f, 1f));
         _buttonBottomShade.color = pressed ? new Color(0.28f, 0.2f, 0.11f, 0.55f) : new Color(0.42f, 0.29f, 0.13f, 0.45f);
+        _lastButtonHovered = _isMouseOverButton;
+        _lastButtonPressed = pressed;
     }
 
     [HideFromIl2Cpp]

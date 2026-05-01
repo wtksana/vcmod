@@ -8,6 +8,8 @@ internal static class CardBreakCountdownDisplay
     private const string DefaultCountdownColor = "#00ff66";
 
     private static ConfigEntry<string> _countdownColor;
+    private static string _lastConfiguredColor;
+    private static string _cachedCountdownColor = DefaultCountdownColor;
 
     public static void Configure(ConfigFile config)
     {
@@ -20,7 +22,7 @@ internal static class CardBreakCountdownDisplay
 
     public static string AddCountdownLine(CardView cardView, string description)
     {
-        int remainingPlays = CardRules.GetRemainingPlaysBeforeBreak(cardView?.CardModel?.BreakableCard);
+        int remainingPlays = CardRules.GetRemainingPlaysBeforeBreak(cardView?.CardModel);
         if (remainingPlays <= 0)
         {
             return description;
@@ -38,7 +40,14 @@ internal static class CardBreakCountdownDisplay
     private static string GetCountdownColor()
     {
         string configuredColor = _countdownColor?.Value;
-        return IsValidHexColor(configuredColor) ? configuredColor : DefaultCountdownColor;
+        if (configuredColor == _lastConfiguredColor)
+        {
+            return _cachedCountdownColor;
+        }
+
+        _lastConfiguredColor = configuredColor;
+        _cachedCountdownColor = IsValidHexColor(configuredColor) ? configuredColor : DefaultCountdownColor;
+        return _cachedCountdownColor;
     }
 
     private static bool IsValidHexColor(string value)

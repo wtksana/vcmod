@@ -9,6 +9,8 @@ namespace VampireCrawlersMod;
 
 internal static class CardRules
 {
+    private static int? _cachedCrackingStages;
+
     public static bool IsWildCard(CardModel card)
     {
         try
@@ -30,7 +32,12 @@ internal static class CardRules
 
     public static int GetRemainingPlaysBeforeBreak(CardModel card)
     {
-        return GetRemainingPlaysBeforeBreak(card?.BreakableCard);
+        if (card == null || card.IsBroken)
+        {
+            return 0;
+        }
+
+        return GetRemainingPlaysBeforeBreak(card.BreakableCard);
     }
 
     public static int GetRemainingPlaysBeforeBreak(BreakableCard breakableCard)
@@ -46,18 +53,30 @@ internal static class CardRules
             return 0;
         }
 
-        int crackingStages = 0;
+        int crackingStages = GetCrackingStages();
+
+        int remainingByStage = crackingStages - breakableCard.CardCrackStage;
+        return remainingByStage > 0 ? remainingByStage : 0;
+    }
+
+    private static int GetCrackingStages()
+    {
+        if (_cachedCrackingStages.HasValue)
+        {
+            return _cachedCrackingStages.Value;
+        }
+
         try
         {
-            crackingStages = GlobalConfig.Instance.cardCrackConfig.crackingStages;
+            _cachedCrackingStages = GlobalConfig.Instance.cardCrackConfig.crackingStages;
         }
         catch (Exception ex)
         {
             Plugin.Logger?.LogWarning($"Unable to read card crack config: {ex.Message}");
+            _cachedCrackingStages = 0;
         }
 
-        int remainingByStage = crackingStages - breakableCard.CardCrackStage;
-        return remainingByStage > 0 ? remainingByStage : 0;
+        return _cachedCrackingStages.Value;
     }
 
     public static bool HasOnlyOnePlayBeforeBreak(CardModel card)
