@@ -31,6 +31,8 @@ public sealed class HandSortButtonController : MonoBehaviour
     private static ConfigEntry<bool> _autoSortAfterDraw;
     private static ConfigEntry<float> _autoSortDelaySeconds;
     private static ConfigEntry<float> _autoSortSuppressAfterPlaySeconds;
+    private static ConfigEntry<bool> _sortCostAscending;
+    private static ConfigEntry<bool> _wildCardsOnLeft;
     private static Vector2 _runtimeButtonReferencePosition;
     private static bool _hasRuntimeButtonReferencePosition;
     private static bool _isDraggingButton;
@@ -93,6 +95,18 @@ public sealed class HandSortButtonController : MonoBehaviour
             "AutoSortSuppressAfterPlaySeconds",
             DefaultAutoSortSuppressAfterPlaySeconds,
             "成功出牌后多少秒内不触发自动整理，避免出牌抽牌时误点新位置的手牌。");
+
+        _sortCostAscending = config.Bind(
+            "HandSort",
+            "SortCostAscending",
+            true,
+            "手牌整理时费用是否按从小到大排序。关闭后按从大到小排序。");
+
+        _wildCardsOnLeft = config.Bind(
+            "HandSort",
+            "WildCardsOnLeft",
+            false,
+            "手牌整理时万能牌是否放在最左边。关闭后放在最右边。");
     }
 
     [HideFromIl2Cpp]
@@ -815,13 +829,15 @@ public sealed class HandSortButtonController : MonoBehaviour
     [HideFromIl2Cpp]
     private static int CompareSortValues(bool xIsWild, int xCost, string xName, int xOriginalIndex, bool yIsWild, int yCost, string yName, int yOriginalIndex)
     {
-        int wildCompare = xIsWild.CompareTo(yIsWild);
+        bool wildCardsOnLeft = _wildCardsOnLeft?.Value == true;
+        int wildCompare = wildCardsOnLeft ? yIsWild.CompareTo(xIsWild) : xIsWild.CompareTo(yIsWild);
         if (wildCompare != 0)
         {
             return wildCompare;
         }
 
-        int costCompare = xCost.CompareTo(yCost);
+        bool sortCostAscending = _sortCostAscending?.Value != false;
+        int costCompare = sortCostAscending ? xCost.CompareTo(yCost) : yCost.CompareTo(xCost);
         if (costCompare != 0)
         {
             return costCompare;
