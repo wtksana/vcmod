@@ -743,6 +743,11 @@ public sealed class HandSortButtonController : MonoBehaviour
     {
         try
         {
+            if (card != null && card.IsCardFreeToPlay())
+            {
+                return card.GetCardComboCost();
+            }
+
             return card.GetCardCostTypeManaCost();
         }
         catch (Exception ex)
